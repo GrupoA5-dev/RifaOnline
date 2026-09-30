@@ -1,0 +1,102 @@
+<?php
+
+use App\Http\Controllers\Checkout\CreatePixPaymentController;
+use App\Http\Controllers\Checkout\PaymentStatusController;
+use App\Http\Controllers\Webhooks\InterPixWebhookController;
+use App\Http\Controllers\Public\AvailableNumbersController;
+use App\Http\Controllers\Public\CheckoutController;
+use App\Http\Controllers\Public\HomeController;
+use App\Http\Controllers\Public\MyNumbersController;
+use App\Http\Controllers\Public\MyNumbersLookupController;
+use App\Http\Controllers\Public\RaffleController;
+use App\Http\Controllers\Public\RaffleEventController;
+use App\Http\Controllers\Public\ReserveOrderController;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+
+Route::get('/', HomeController::class)->name('home');
+
+Route::get('/campanhas/{slug}', RaffleController::class)
+    ->where('slug', '[A-Za-z0-9\-_]+')
+    ->name('raffles.show');
+
+Route::get('/campanhas/{slug}/numeros', AvailableNumbersController::class)
+    ->middleware('throttle:60,1')
+    ->where('slug', '[A-Za-z0-9\-_]+')
+    ->name('raffles.numbers');
+
+Route::post('/campanhas/{slug}/evento', RaffleEventController::class)
+    ->middleware('throttle:120,1')
+    ->where('slug', '[A-Za-z0-9\-_]+')
+    ->name('raffles.events');
+
+Route::post('/campanhas/{slug}/reservar', ReserveOrderController::class)
+    ->middleware('throttle:8,1')
+    ->where('slug', '[A-Za-z0-9\-_]+')
+    ->name('raffles.reserve');
+
+Route::get('/meus-numeros', [MyNumbersLookupController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('my-numbers.lookup');
+
+Route::post('/meus-numeros', [MyNumbersLookupController::class, 'lookup'])
+    ->middleware('throttle:10,1')
+    ->name('my-numbers.lookup.submit');
+
+Route::get('/meus-numeros/{token}', MyNumbersController::class)
+    ->middleware('throttle:30,1')
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->name('my-numbers.show');
+
+Route::get('/pedidos/{orderUuid}/{token}', CheckoutController::class)
+    ->whereUuid('orderUuid')
+    ->where('token', '[A-Za-z0-9]{64}')
+    ->name('checkout.show');
+
+Route::post('/webhooks/inter/pix/{token}', InterPixWebhookController::class)
+    ->where('token', '[A-Za-z0-9]{48}')
+    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->middleware('throttle:300,1')
+    ->name('webhooks.inter.pix');
+
+Route::get('/health', function () {
+    $database = 'ok';
+    $cache = 'ok';
+
+    try {
+        DB::select('SELECT 1');
+    } catch (\Throwable) {
+        $database = 'error';
+    }
+
+    try {
+        Cache::put('health-check', 'ok', 10);
+        if (Cache::get('health-check') !== 'ok') {
+            $cache = 'error';
+        }
+    } catch (\Throwable) {
+        $cache = 'error';
+    }
+
+    $status = $database === 'ok' && $cache === 'ok' ? 'ok' : 'degraded';
+
+    return response()->json([
+        'status' => $status,
+        'services' => [
+            'database' => $database,
+            'cache' => $cache,
+        ],
+    ], $status === 'ok' ? 200 : 503);
+})->name('health');
+
+Route::post('/checkout/orders/{orderUuid}/pix', CreatePixPaymentController::class)
+    ->middleware('throttle:10,1')
+    ->whereUuid('orderUuid')
+    ->name('checkout.orders.pix');
+
+Route::get('/checkout/orders/{orderUuid}/payment', PaymentStatusController::class)
+    ->middleware('throttle:60,1')
+    ->whereUuid('orderUuid')
+    ->name('checkout.orders.payment-status');

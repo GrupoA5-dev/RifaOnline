@@ -1,0 +1,150 @@
+<?php
+
+namespace App\Filament\Resources\RaffleWinners;
+
+use App\Filament\Resources\RaffleWinners\Pages\CreateRaffleWinner;
+use App\Filament\Resources\RaffleWinners\Pages\EditRaffleWinner;
+use App\Filament\Resources\RaffleWinners\Pages\ListRaffleWinners;
+use App\Models\Raffle;
+use App\Models\RafflePrize;
+use App\Models\RaffleWinner;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
+use Throwable;
+
+class RaffleWinnerResource extends Resource
+{
+    protected static ?string $model = RaffleWinner::class;
+
+    protected static ?string $modelLabel = 'ganhador';
+    protected static ?string $pluralModelLabel = 'ganhadores';
+    protected static ?string $navigationLabel = 'Ganhadores';
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema->components([
+            Select::make('raffle_id')
+                ->label('Campanha')
+                ->options(fn (): array => Raffle::query()->orderByDesc('id')->pluck('title', 'id')->all())
+                ->searchable()
+                ->required(),
+
+            Select::make('raffle_prize_id')
+                ->label('Prêmio')
+                ->options(fn (): array => RafflePrize::query()
+                    ->with('raffle:id,title')
+                    ->orderBy('raffle_id')
+                    ->orderBy('position')
+                    ->get()
+                    ->mapWithKeys(fn (RafflePrize $prize) => [
+                        $prize->id => ($prize->raffle?->title ?? 'Campanha').' — '.$prize->position.'º '.$prize->title,
+                    ])
+                    ->all())
+                ->searchable()
+                ->placeholder('Sem prêmio vinculado'),
+
+            TextInput::make('ticket_number')
+                ->label('Número vencedor')
+                ->numeric()
+                ->minValue(0)
+                ->live()
+                ->required()
+                ->helperText('Informe o número sem zeros à esquerda. Ex.: 011 pode ser informado como 11.'),
+
+            Placeholder::make('winner_preview')
+                ->label('Comprador encontrado')
+                ->content(function ($get): HtmlString|string {
+                    $raffleId = $get('raffle_id');
+                    $number = $get('ticket_number');
+
+                    if (! $raffleId || $number === null || $number === '') {
+                        return 'Informe a campanha e o número vencedor.';
+                    }
+
+                    $ticket = \App\Models\OrderTicket::query()
+                        ->where('raffle_id', $raffleId)
+                        ->where('number', (int) $number)
+                        ->where('status', \App\Enums\OrderTicketStatus::Paid->value)
+                        ->with('order.customer')
+                        ->first();
+
+                    if (! $ticket) {
+                        return 'Nenhum comprador pago encontrado para este número.';
+                    }
+
+                    $customer = $ticket->order?->customer;
+
+                    return new HtmlString(
+                        '<strong>'.$customer?->name.'</strong><br>'.
+                        'WhatsApp: '.($customer?->phone ?? '—').'<br>'.
+                        'Pedido: #'.$ticket->order_id
+                    );
+                }),
+
+            TextInput::make('winner_name')
+                ->label('Nome exibido')
+                ->maxLength(160)
+                ->helperText('Se ficar vazio, o sistema usa o nome do comprador do número pago.'),
+
+            DateTimePicker::make('announced_at')
+                ->label('Publicar ganhador em')
+                ->seconds(false)
+                ->default(now())
+                ->helperText('Enquanto estiver vazio ou no futuro, o ganhador não aparece na página pública.'),
+
+            Textarea::make('notes')
+                ->label('Observações internas')
+                ->rows(4),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('raffle.title')->label('Campanha')->searchable()->sortable(),
+                TextColumn::make('ticket_number')
+                    ->label('Número')
+                    ->formatStateUsing(fn ($state, RaffleWinner $record): string => $record->raffle?->formatNumber((int) $state) ?? (string) $state),
+                TextColumn::make('winner_name')->label('Ganhador')->searchable(),
+                TextColumn::make('prize_title')->label('Prêmio')->placeholder('—'),
+                TextColumn::make('announced_at')->label('Publicado em')->dateTime('d/m/Y H:i')->placeholder('Não publicado')->sortable(),
+            ])
+            ->recordActions([
+                EditAction::make()->label('Editar'),
+                Action::make('deleteWinner')
+                    ->label('Excluir')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->action(function (RaffleWinner $record): void {
+                        try {
+                            $record->delete();
+                            Notification::make()->success()->title('Ganhador removido')->send();
+                        } catch (Throwable $e) {
+                            Notification::make()->danger()->title('Não foi possível excluir')->body($e->getMessage())->send();
+                        }
+                    }),
+            ])
+            ->defaultSort('announced_at', 'desc');
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => ListRaffleWinners::route('/'),
+            'create' => CreateRaffleWinner::route('/create'),
+            'edit' => EditRaffleWinner::route('/{record}/edit'),
+        ];
+    }
+}

@@ -1,0 +1,162 @@
+<?php
+
+namespace App\Filament\Pages;
+
+use App\Enums\UserRole;
+use App\Models\SystemSetting;
+use App\Services\Support\AuditService;
+use Filament\Forms\Components\ColorPicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+
+class BrandingSettingsPage extends Page implements HasForms
+{
+    use InteractsWithForms;
+
+    protected string $view = 'filament.pages.branding-settings';
+
+    protected static ?string $navigationLabel = 'Identidade visual';
+    protected static ?string $title = 'Identidade visual';
+    protected static string|\UnitEnum|null $navigationGroup = 'Configurações';
+    protected static ?int $navigationSort = 10;
+
+    public ?array $data = [];
+
+    public function mount(): void
+    {
+        abort_unless(static::canAccess(), 403);
+
+        $this->form->fill([
+            'system_name' => SystemSetting::value('general', 'system_name', config('app.name')),
+            'tagline' => SystemSetting::value('branding', 'tagline', 'Campanhas digitais'),
+            'logo' => SystemSetting::value('branding', 'logo'),
+            'logo_size' => (int) SystemSetting::value('branding', 'logo_size', 44),
+            'primary_color' => SystemSetting::value('branding', 'primary_color', '#22c55e'),
+            'button_text_color' => SystemSetting::value('branding', 'button_text_color', '#07110b'),
+        ]);
+    }
+
+    public function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                TextInput::make('system_name')
+                    ->label('Nome do site')
+                    ->required()
+                    ->maxLength(80),
+
+                TextInput::make('tagline')
+                    ->label('Subtítulo / slogan')
+                    ->maxLength(120)
+                    ->helperText('Exibido abaixo do nome no cabeçalho público.'),
+
+                FileUpload::make('logo')
+                    ->label('Logo do site')
+                    ->image()
+                    ->disk('public')
+                    ->directory('branding')
+                    ->visibility('public')
+                    ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp'])
+                    ->maxSize(4096)
+                    ->imagePreviewHeight('100')
+                    ->helperText('PNG, JPG ou WebP. Até 4 MB. SVG não é aceito por segurança.'),
+
+                TextInput::make('logo_size')
+->label('Tamanho da logo no site')
+->type('range')
+->rules(['required', 'integer', 'min:28', 'max:120'])
+->minValue(28)
+->maxValue(120)
+->step(1)
+->helperText('Arraste a barra para diminuir ou aumentar a logo. Faixa: 28px a 120px')
+
+                ColorPicker::make('primary_color')
+                    ->label('Cor principal / botões')
+                    ->required()
+                    ->hexColor()
+                    ->default('#22c55e'),
+
+                ColorPicker::make('button_text_color')
+                    ->label('Cor do texto dos botões')
+                    ->required()
+                    ->hexColor()
+                    ->default('#07110b'),
+            ])
+            ->statePath('data');
+    }
+
+    public function save(): void
+    {
+        abort_unless(static::canAccess(), 403);
+
+        $data = $this->form->getState();
+        $oldLogo = SystemSetting::value('branding', 'logo');
+        $newLogo = $this->normalizeUploadPath($data['logo'] ?? null);
+
+        if (is_string($oldLogo) && $oldLogo !== '' && $oldLogo !== $newLogo && Storage::disk('public')->exists($oldLogo)) {
+            Storage::disk('public')->delete($oldLogo);
+        }
+
+        $this->put('general', 'system_name', trim((string) ($data['system_name'] ?? config('app.name'))), 'string', true);
+        $this->put('branding', 'tagline', trim((string) ($data['tagline'] ?? '')), 'string', true);
+        $this->put('branding', 'logo', $newLogo, 'image', true);
+        $logoSize = max(28, min(120, (int) ($data['logo_size'] ?? 44)));
+        $this->put('branding', 'logo_size', $logoSize, 'integer', true);
+        $this->put('branding', 'primary_color', strtolower((string) ($data['primary_color'] ?? '#22c55e')), 'color', true);
+        $this->put('branding', 'button_text_color', strtolower((string) ($data['button_text_color'] ?? '#07110b')), 'color', true);
+
+        AuditService::record('branding.updated', after: [
+            'system_name' => $data['system_name'] ?? null,
+            'tagline' => $data['tagline'] ?? null,
+            'logo_configured' => filled($newLogo),
+            'logo_size' => $logoSize,
+            'primary_color' => $data['primary_color'] ?? null,
+            'button_text_color' => $data['button_text_color'] ?? null,
+        ]);
+
+        Notification::make()
+            ->success()
+            ->title('Identidade visual atualizada')
+            ->body('Logo, nome e cores foram salvos. Recarregue o site público para visualizar as alterações.')
+            ->send();
+
+        $this->mount();
+    }
+
+    private function put(string $group, string $key, mixed $value, string $type, bool $public): void
+    {
+        SystemSetting::query()->updateOrCreate(
+            ['group' => $group, 'key' => $key],
+            ['value' => $value, 'type' => $type, 'is_public' => $public],
+        );
+    }
+
+    private function normalizeUploadPath(mixed $state): ?string
+    {
+        if (is_string($state) && $state !== '') {
+            return $state;
+        }
+
+        if (is_array($state)) {
+            $first = reset($state);
+            return is_string($first) && $first !== '' ? $first : null;
+        }
+
+        return null;
+    }
+
+    public static function canAccess(): bool
+    {
+        $user = Auth::user();
+
+        return $user?->active === true
+            && in_array($user?->role, [UserRole::SuperAdmin, UserRole::Admin], true);
+    }
+}
