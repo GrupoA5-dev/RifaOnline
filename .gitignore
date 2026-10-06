@@ -30,3 +30,6 @@ work*patch/
 # Local backups
 *.bak
 *.save
+*.bkp
+*.erro-backup
+error_log
