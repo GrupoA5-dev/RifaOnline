@@ -10,6 +10,7 @@ use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -54,4 +55,15 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     {
         return $this->role === UserRole::SuperAdmin;
     }
+
+    /**
+     * Organizadores SaaS vinculados ao usuário.
+     */
+    public function organizers(): BelongsToMany
+    {
+        return $this->belongsToMany(Organizer::class, 'organizer_users')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
 }
+
