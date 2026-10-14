@@ -8,6 +8,7 @@ use App\Support\Money;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -16,6 +17,7 @@ class Raffle extends Model
     use HasFactory;
 
     protected $fillable = [
+        'organizer_id',
         'title',
         'slug',
         'description',
@@ -74,28 +76,46 @@ class Raffle extends Model
     {
         return Attribute::make(
             get: fn (): string => Money::format((int) $this->ticket_price_cents),
-            set: fn (string|int|float $value): array => ['ticket_price_cents' => Money::toCents($value)],
+            set: fn (string|int|float $value): array => [
+                'ticket_price_cents' => Money::toCents($value),
+            ],
         );
     }
 
     protected function revenueGoal(): Attribute
     {
         return Attribute::make(
-            get: fn (): ?string => $this->revenue_goal_cents === null ? null : Money::format((int) $this->revenue_goal_cents),
+            get: fn (): ?string => $this->revenue_goal_cents === null
+                ? null
+                : Money::format((int) $this->revenue_goal_cents),
+
             set: fn (string|int|float|null $value): array => [
-                'revenue_goal_cents' => blank($value) ? null : Money::toCents($value),
+                'revenue_goal_cents' => blank($value)
+                    ? null
+                    : Money::toCents($value),
             ],
         );
     }
 
+    /**
+     * Organizador responsável pela campanha.
+     */
+    public function organizer(): BelongsTo
+    {
+        return $this->belongsTo(Organizer::class);
+    }
+
     public function prizes(): HasMany
     {
-        return $this->hasMany(RafflePrize::class)->orderBy('position');
+        return $this->hasMany(RafflePrize::class)
+            ->orderBy('position');
     }
 
     public function winners(): HasMany
     {
-        return $this->hasMany(RaffleWinner::class)->orderByDesc('announced_at')->orderBy('id');
+        return $this->hasMany(RaffleWinner::class)
+            ->orderByDesc('announced_at')
+            ->orderBy('id');
     }
 
     public function orders(): HasMany
@@ -129,6 +149,11 @@ class Raffle extends Model
 
     public function formatNumber(int $number): string
     {
-        return str_pad((string) $number, (int) $this->number_digits, '0', STR_PAD_LEFT);
+        return str_pad(
+            (string) $number,
+            (int) $this->number_digits,
+            '0',
+            STR_PAD_LEFT
+        );
     }
 }
