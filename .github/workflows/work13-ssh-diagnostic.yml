@@ -1,0 +1,73 @@
+name: "WORK 13 - Diagnostico SSH de homologacao"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ssh-readonly:
+    name: Inspecao SSH (somente leitura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: homologacao
+    steps:
+      - name: Validar configuracao de homologacao
+        env:
+          HOST: ${{ vars.STAGING_SSH_HOST }}
+          USERNAME: ${{ vars.STAGING_SSH_USER }}
+          PORT: ${{ vars.STAGING_SSH_PORT }}
+          TARGET_PATH: ${{ vars.STAGING_APP_PATH }}
+          SSH_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          HOST_KEYS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in HOST USERNAME PORT TARGET_PATH SSH_KEY HOST_KEYS; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Falta configuracao SSH: ${name}"
+              exit 1
+            fi
+          done
+          [[ "$PORT" =~ ^[0-9]{1,5}$ ]] || { echo "::error::Porta SSH invalida"; exit 1; }
+          [[ "$TARGET_PATH" == /home/grupoaco/* ]] || { echo "::error::Diretorio fora da area autorizada"; exit 1; }
+          [[ "$TARGET_PATH" != "/home/grupoaco/rifas.meu.ink" && "$TARGET_PATH" != "/home/grupoaco/rifas-a5-app" ]] || { echo "::error::Nao inspecionar sistema legado nem desenvolvimento ativo"; exit 1; }
+
+      - name: Verificar conexao e requisitos sem alterar servidor
+        env:
+          HOST: ${{ vars.STAGING_SSH_HOST }}
+          USERNAME: ${{ vars.STAGING_SSH_USER }}
+          PORT: ${{ vars.STAGING_SSH_PORT }}
+          TARGET_PATH: ${{ vars.STAGING_APP_PATH }}
+          SSH_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          HOST_KEYS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/work13_deploy_key"
+          printf '%s\n' "$HOST_KEYS" > "$HOME/.ssh/known_hosts"
+          trap 'rm -f "$HOME/.ssh/work13_deploy_key" "$HOME/.ssh/known_hosts"' EXIT
+          # TARGET_PATH e enviado como argumento e tratado como string pelo shell remoto.
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12 \
+            -i "$HOME/.ssh/work13_deploy_key" -p "$PORT" \
+            "$USERNAME@$HOST" 'sh -s' -- "$TARGET_PATH" <<'REMOTE'
+          set -eu
+          target="$1"
+          echo "Conectividade SSH: OK"
+          if [ -d "$target" ]; then
+            echo "Diretorio de homologacao: existe"
+            if [ -f "$target/artisan" ]; then
+              echo "Aplicacao Laravel: encontrada"
+            else
+              echo "Aplicacao Laravel: ainda nao preparada"
+            fi
+          else
+            echo "Diretorio de homologacao: ainda nao criado"
+          fi
+          if command -v php >/dev/null 2>&1; then
+            php -v | head -n 1
+          else
+            echo "PHP nao esta no PATH remoto"
+          fi
+          REMOTE
