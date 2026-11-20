@@ -32,6 +32,11 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Preparar diretorios temporarios do Laravel
+        run: |
+          mkdir -p storage/framework/{cache/data,sessions,testing,views}
+          mkdir -p storage/logs bootstrap/cache
+
       - name: Instalar dependencias PHP
         run: composer install --no-interaction --prefer-dist --no-progress
 
