@@ -11,6 +11,8 @@ class HomeTest extends TestCase
 
     public function test_homepage_is_available(): void
     {
+        $this->withoutVite();
+
         $this->get('/')->assertOk();
     }
 }
