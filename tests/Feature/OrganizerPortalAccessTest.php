@@ -78,4 +78,18 @@ class OrganizerPortalAccessTest extends TestCase
         $this->assertFalse($master->canAccessTenant($organizer));
         $this->assertCount(0, $master->getTenants(Panel::make()->id('organizer')));
     }
+
+    public function test_organizer_login_is_registered_separately_from_platform_admin(): void
+    {
+        $organizerLogin = \Illuminate\Support\Facades\Route::getRoutes()
+            ->getByName('filament.organizer.auth.login');
+        $adminLogin = \Illuminate\Support\Facades\Route::getRoutes()
+            ->getByName('filament.admin.auth.login');
+
+        $this->assertNotNull($organizerLogin);
+        $this->assertNotNull($adminLogin);
+        $this->assertSame('organizador/login', $organizerLogin->uri());
+        $this->assertSame('admin/login', $adminLogin->uri());
+    }
+
 }
