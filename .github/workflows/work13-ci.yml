@@ -69,3 +69,11 @@ jobs:
 
       - name: Compilar frontend
         run: npm run build
+
+      - name: Guardar frontend compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: rifaonline-vite-build
+          path: public/build/
+          if-no-files-found: error
+          retention-days: 7
