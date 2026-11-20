@@ -52,7 +52,7 @@ class OrganizerCampaignListTest extends TestCase
             ->getByName('filament.organizer.resources.campanhas.index');
 
         $this->assertNotNull($route);
-        $this->assertSame('organizador/{tenant:slug}/campanhas', $route->uri());
+        $this->assertSame('organizador/{tenant}/campanhas', $route->uri());
 
         $this->assertNull(
             Route::getRoutes()->getByName('filament.organizer.resources.campanhas.create')
