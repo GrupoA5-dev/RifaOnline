@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Organizer\Pages\Dashboard;
+use App\Filament\Organizer\Resources\Raffles\RaffleResource;
 use App\Models\Organizer;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Http\Middleware\Authenticate;
@@ -29,8 +30,11 @@ class OrganizerPanelProvider extends PanelProvider
             ->login()
             ->profile(isSimple: false)
             ->tenant(Organizer::class, slugAttribute: 'slug')
-            // Intentionally no resource discovery: raffles/orders/payments
-            // are NOT tenant-isolated yet and must not be exposed here.
+            // Explicit allowlist: only a read-only, tenant-scoped campaign list.
+            // Customers, orders, payments and admin resources remain unavailable.
+            ->resources([
+                RaffleResource::class,
+            ])
             ->pages([
                 Dashboard::class,
             ])
