@@ -23,6 +23,14 @@ class Organizer extends Model
             ->withTimestamps();
     }
 
+    /**
+     * Only campaigns explicitly owned by this organizer.
+     */
+    public function raffles(): HasMany
+    {
+        return $this->hasMany(Raffle::class);
+    }
+
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
