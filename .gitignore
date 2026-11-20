@@ -33,3 +33,6 @@ work*patch/
 *.bkp
 *.erro-backup
 error_log
+
+# Laravel generated bootstrap manifests (never versioned)
+/bootstrap/cache/*.php
