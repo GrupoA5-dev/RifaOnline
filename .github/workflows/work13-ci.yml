@@ -46,7 +46,7 @@ jobs:
           php artisan key:generate --force
 
       - name: Executar testes
-        run: php artisan test
+        run: vendor/bin/phpunit
 
   vue-build:
     name: Vue / Vite
