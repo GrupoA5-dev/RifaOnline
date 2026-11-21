@@ -46,6 +46,30 @@ class OrganizerCampaignListTest extends TestCase
         $this->assertFalse(RaffleResource::canView($mine));
     }
 
+    public function test_master_can_open_only_their_organizers_campaign_page(): void
+    {
+        $own = $this->organizer('Organizador Alfa', 'org-alfa');
+        $other = $this->organizer('Organizador Beta', 'org-beta');
+        $mine = $this->raffle('Sorteio de Alfa', 'sorteio-alfa', $own->id);
+        $foreign = $this->raffle('Sorteio de Beta', 'sorteio-beta', $other->id);
+        $legacy = $this->raffle('Sorteio sem organizador', 'sorteio-legado', null);
+
+        $master = User::factory()->create(['role' => null, 'active' => true]);
+        $master->organizers()->attach($own->id, ['role' => 'master']);
+        $master->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $this->actingAs($master);
+
+        $this->get('/organizador/org-alfa/campanhas')
+            ->assertOk()
+            ->assertSeeText($mine->title)
+            ->assertDontSeeText($foreign->title)
+            ->assertDontSeeText($legacy->title);
+
+        $response = $this->get('/organizador/org-beta/campanhas');
+        $this->assertContains($response->getStatusCode(), [403, 404]);
+        $response->assertDontSeeText($foreign->title);
+    }
+
     public function test_organizer_campaign_list_route_is_registered_separately(): void
     {
         $route = Route::getRoutes()
