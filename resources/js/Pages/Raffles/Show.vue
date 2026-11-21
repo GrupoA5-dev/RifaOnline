@@ -314,7 +314,7 @@ onMounted(() => {
                         <h2 class="text-lg font-black">Top colaboradores</h2>
                         <div class="mt-4 space-y-3">
                             <div v-for="(rank, index) in raffle.ranking" :key="rank.name" class="flex items-center justify-between rounded-2xl bg-white/[.035] px-4 py-3">
-                                <div class="flex items-center gap-3"><span class="grid h-8 w-8 place-items-center rounded-full a5-brand-soft text-sm font-black a5-brand-text">{{ index + 1 }}</span><span class="font-bold">{{ rank.name }}</span></div>
+                                <div class="flex items-center gap-3"><span class="grid h-8 w-8 place-items-center rounded-full a5-brand-soft text-sm font-black a5-brand-text">{{ Number(index) + 1 }}</span><span class="font-bold">{{ rank.name }}</span></div>
                                 <strong>{{ rank.tickets.toLocaleString('pt-BR') }} números</strong>
                             </div>
                         </div>

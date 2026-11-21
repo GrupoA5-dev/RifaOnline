@@ -1,0 +1,79 @@
+name: "WORK 13 - CI"
+
+on:
+  push:
+    branches:
+      - feature/work13-automation
+      - feature/multi-tenant-base
+  pull_request:
+    branches:
+      - feature/multi-tenant-base
+
+permissions:
+  contents: read
+
+concurrency:
+  group: work13-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  laravel-tests:
+    name: Laravel / PHPUnit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, bcmath, gd, zip, pdo_sqlite, sqlite3
+          coverage: none
+          tools: composer:v2
+
+      - name: Preparar diretorios temporarios do Laravel
+        run: |
+          mkdir -p storage/framework/{cache/data,sessions,testing,views}
+          mkdir -p storage/logs bootstrap/cache
+
+      - name: Instalar dependencias PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Preparar ambiente efemero de testes
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Executar testes
+        run: vendor/bin/phpunit
+
+  vue-build:
+    name: Vue / Vite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias JS
+        run: npm ci
+
+      - name: Validar tipos TypeScript
+        run: npm run typecheck
+
+      - name: Compilar frontend
+        run: npm run build
+
+      - name: Guardar frontend compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: rifaonline-vite-build
+          path: public/build/
+          if-no-files-found: error
+          retention-days: 7

@@ -12,6 +12,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePublicOrderRequest;
 use App\Models\Customer;
 use App\Models\Raffle;
+use App\Enums\RaffleStatus;
 use App\Support\Phone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
@@ -26,7 +27,8 @@ class ReserveOrderController extends Controller
         ReserveRandomTickets $reserveRandomTickets,
         ReserveSelectedTickets $reserveSelectedTickets,
     ): RedirectResponse {
-        $raffle = Raffle::query()->where('slug', $slug)->firstOrFail();
+        $raffle = Raffle::query()->where('slug', $slug)
+            ->where('status', '!=', RaffleStatus::Draft->value)->firstOrFail();
         $validated = $request->validated();
 
         $name = $raffle->collect_name ? trim((string) ($validated['name'] ?? '')) : '';
