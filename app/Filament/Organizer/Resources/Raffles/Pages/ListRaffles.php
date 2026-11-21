@@ -28,8 +28,7 @@ class ListRaffles extends ListRecords
                     TextInput::make('title')->label('Nome da campanha')->required()->maxLength(160),
                     TextInput::make('total_numbers')->label('Quantidade de números')
                         ->required()->integer()->minValue(1)->maxValue(1000000),
-                    TextInput::make('ticket_price')->label('Preço por número')->prefix('R
-)
+                    TextInput::make('ticket_price')->label('Preço por número')->prefix('R$')
                         ->placeholder('1,00')->required()
                         ->regex('/^(?!0+(?:[,.]0{1,2})?$)\d{1,7}(?:[,.]\d{1,2})?$/D'),
                 ])
