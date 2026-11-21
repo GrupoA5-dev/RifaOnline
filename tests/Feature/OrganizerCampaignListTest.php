@@ -113,6 +113,26 @@ class OrganizerCampaignListTest extends TestCase
         $this->assertDatabaseCount('raffles', 1);
     }
 
+    public function test_draft_has_no_public_campaign_or_reservation_activity(): void
+    {
+        $own = $this->organizer('Organizador Alfa', 'org-alfa');
+        $draft = $this->raffle('Rascunho', 'rascunho-teste', $own->id);
+
+        $this->get(route('raffles.show', $draft->slug))->assertNotFound();
+        $this->getJson(route('raffles.numbers', $draft->slug))->assertNotFound();
+        $this->postJson(route('raffles.events', $draft->slug), [
+            'event' => 'campaign_click',
+        ])->assertNotFound();
+        $this->postJson(route('raffles.reserve', $draft->slug), [
+            'name' => 'Participante de teste', 'phone' => '83999990000',
+            'quantity' => 1, 'terms' => true,
+        ])->assertNotFound();
+
+        $this->assertDatabaseCount('customers', 0);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('raffle_events', 0);
+    }
+
     private function organizer(string $name, string $slug): Organizer
     {
         return Organizer::query()->create([
