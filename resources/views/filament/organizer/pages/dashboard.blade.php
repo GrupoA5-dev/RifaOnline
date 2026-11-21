@@ -34,8 +34,7 @@
 
         <p>
             Os indicadores acima são somente de leitura e pertencem à organização selecionada.
-            As listas de clientes e as ações de campanhas, pedidos e pagamentos continuam bloqueadas
-            até concluirmos a revisão do isolamento multi-tenant.
+            O Master pode criar rascunhos no menu Campanhas.
         </p>
     </div>
 </x-filament-panels::page>

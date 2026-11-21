@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
 use App\Models\Raffle;
+use App\Enums\RaffleStatus;
 use App\Services\Analytics\RaffleAnalyticsService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -17,7 +18,8 @@ class RaffleEventController extends Controller
             'event' => ['required', 'string', Rule::in(RaffleAnalyticsService::CLICK_EVENTS)],
         ]);
 
-        $raffle = Raffle::query()->where('slug', $slug)->firstOrFail();
+        $raffle = Raffle::query()->where('slug', $slug)
+            ->where('status', '!=', RaffleStatus::Draft->value)->firstOrFail();
         $analytics->recordClick($raffle, (string) $validated['event'], $request);
 
         return response()->noContent();

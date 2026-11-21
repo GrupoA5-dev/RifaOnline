@@ -10,6 +10,8 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
+use Livewire\Livewire;
+use App\Filament\Organizer\Resources\Raffles\Pages\ListRaffles;
 
 class OrganizerCampaignListTest extends TestCase
 {
@@ -81,6 +83,34 @@ class OrganizerCampaignListTest extends TestCase
         $this->assertNull(
             Route::getRoutes()->getByName('filament.organizer.resources.campanhas.create')
         );
+    }
+
+    public function test_only_a_master_of_the_current_organizer_can_create_a_draft(): void
+    {
+        $own = $this->organizer('Organizador Alfa', 'org-alfa');
+        $other = $this->organizer('Organizador Beta', 'org-beta');
+        $master = User::factory()->create(['role' => null, 'active' => true]);
+        $master->organizers()->attach($own, ['role' => 'master']);
+        $master->organizers()->attach($other, ['role' => 'manager']);
+        $this->actingAs($master);
+        Filament::setCurrentPanel('organizer');
+        Filament::setTenant($own);
+        Filament::bootCurrentPanel();
+
+        Livewire::test(ListRaffles::class)
+            ->callAction('createDraft', data: [
+                'title' => 'Primeiro rascunho',
+                'total_numbers' => 250,
+                'ticket_price' => '2,50',
+            ])->assertHasNoActionErrors();
+
+        $this->assertDatabaseHas('raffles', [
+            'title' => 'Primeiro rascunho', 'organizer_id' => $own->id,
+            'status' => 'draft', 'total_numbers' => 250, 'ticket_price_cents' => 250,
+        ]);
+        Filament::setTenant($other);
+        Livewire::test(ListRaffles::class)->assertActionHidden('createDraft');
+        $this->assertDatabaseCount('raffles', 1);
     }
 
     private function organizer(string $name, string $slug): Organizer

@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\AllocationMode;
 use App\Models\Raffle;
+use App\Enums\RaffleStatus;
 use App\Rules\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -78,6 +79,7 @@ class StorePublicOrderRequest extends FormRequest
             return null;
         }
 
-        return Raffle::query()->where('slug', $slug)->first();
+        return Raffle::query()->where('slug', $slug)
+            ->where('status', '!=', RaffleStatus::Draft->value)->firstOrFail();
     }
 }
